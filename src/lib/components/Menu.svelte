@@ -23,17 +23,15 @@
 
 </script>
 
-
-
-<div class="absolute md:top-2 left-0 right-0 z-20 flex flex-row justify-left">
-    <div class="w-fit flex flex-row p-1 bg-background rounded-r-md shadow-md">
-        <LineSegments class="flex text-foreground bg-background-alt items-center" size={24} weight="bold" />
+<div class="absolute top-3 left-0 right-0 z-20 flex flex-row justify-left">
+    <div class="w-fit flex flex-row p-1 bg-background rounded-r-md shadow-md items-center bg-slate-700/90 gap-1">
+        <LineSegments class="flex text-[#f74800] bg-background-alt m-2" size={30} weight="bold" />
         <Menubar.Root class="flex h-12 items-center gap-1  bg-background-alt px-[3px] shadow-mini">
             <Menubar.Menu>
                 <Menubar.Trigger aria-label= "Archivo" class="flex h-10 items-center rounded-[6px] px-3 text-sm font-medium outline-none transition-colors bg-white text-gray-700 hover:bg-gray-200 focus:bg-gray-100">
                     Archivo
                 </Menubar.Trigger>
-                <Menubar.Content class="bg-white shadow-lg rounded-md border min-w-[220px] cursor-pointer">
+                <Menubar.Content class="bg-white shadow-lg rounded-md border min-w-[220px] cursor-pointer transition-colors bg-white text-gray-700 hover:bg-gray-200 focus:bg-gray-100">
                     <Menubar.Item class="flex items-center gap-2" onSelect={() => { newFile(); }}>
                         <FilePlus class="mr-2" />
                         Nuevo GPX
