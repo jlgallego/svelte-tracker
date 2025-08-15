@@ -9,15 +9,16 @@ import type { FeatureCollection } from 'geojson';
  * @returns GeoJSON FeatureCollection o null si error
  */
 export function parseGpxToGeoJSON(gpxText: string): FeatureCollection | null {
-  try {
-    const parser = new DOMParser();
-    const xmlDoc = parser.parseFromString(gpxText, "application/xml");
-    const geojson = togeojson.gpx(xmlDoc);
-    return geojson as FeatureCollection;
-  } catch (error) {
-    console.error("Error parsing GPX to GeoJSON:", error);
-    return null;
-  }
+
+    try {
+        const parser = new DOMParser();
+        const xmlDoc = parser.parseFromString(gpxText, "application/xml");
+        const geojson = togeojson.gpx(xmlDoc);
+        return geojson as FeatureCollection;
+    } catch (error) {
+        console.error("Error parsing GPX to GeoJSON:", error);
+        return null;
+    }
 }
 
 /**

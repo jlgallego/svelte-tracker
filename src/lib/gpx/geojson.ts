@@ -28,10 +28,7 @@ export function getTrackPoints(geojson: FeatureCollection): [number, number][] {
  * @param newPoints Nuevas coordenadas [lng, lat]
  * @returns Nuevo FeatureCollection con las rutas actualizadas
  */
-export function setTrackPoints(
-  geojson: FeatureCollection,
-  newPoints: [number, number][]
-): FeatureCollection {
+export function setTrackPoints(geojson: FeatureCollection, newPoints: [number, number][]): FeatureCollection {
   // Crea una copia profunda superficial con .map
   const newFeatures = geojson.features.map(feature => {
     if (feature.geometry.type === "LineString") {
@@ -53,3 +50,4 @@ export function setTrackPoints(
     features: newFeatures
   };
 }
+

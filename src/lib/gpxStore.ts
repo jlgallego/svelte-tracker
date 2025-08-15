@@ -1,15 +1,11 @@
 import { writable, type Writable, get } from 'svelte/store';
 import { v4 as uuidv4 } from 'uuid'; // Utiliza uuid para ids únicas
+import type { GPXFile } from '$lib/gpx/types';
+import { addPointToGpxFile } from '$lib/gpx/fileUtils';
+import { parseGpxToGeoJSON, getTrackPoints, setTrackPoints } from '$lib/gpx'; // importa desde la librería gpx
+import { appState } from '$lib/appStateStore'; // Importa el store de estado de la aplicación
 
-import { parseGpxToGeoJSON } from '$lib/gpx'; // importa desde la librería gpx
-import type { FeatureCollection } from 'geojson';
 
-export interface GPXFile {
-  id: string;
-  name: string;
-  content: string; // texto del archivo GPX
-  geojson?: FeatureCollection | null;  // versión convertida a GeoJSON
-}
 
 // Store para la lista de archivos GPX
 export const gpxFiles: Writable<GPXFile[]> = writable([]);
@@ -24,10 +20,26 @@ export const selectedGpxFile: Writable<GPXFile | null> = writable(null);
 export function newFile(name = "Nuevo GPX") {
   const id = uuidv4();
   const emptyGpx = `<?xml version="1.0" encoding="UTF-8"?><gpx version="1.1" creator="AppName"></gpx>`;
-  const newFile = { id, name, content: emptyGpx, geojson: null };
+  const newFile: GPXFile = { id, name, content: emptyGpx, geojson: null };
 
   gpxFiles.update(files => [...files, newFile]);
   selectedGpxFile.set(newFile);
+  appState.set("EDIT"); // Resetea el estado de edición al seleccionar un archivo
+
+}
+
+/** Añade un punto al track actualmente seleccionado */
+export function addPointToSelectedTrack(lon: number, lat: number) {
+  
+  const file = get(selectedGpxFile);
+  if (!file) return; // No hay track seleccionado
+
+  const updated = addPointToGpxFile(file, lon, lat);
+
+  gpxFiles.update(files =>
+    files.map(f => (f.id === updated.id ? updated : f))
+  );
+  selectedGpxFile.set(updated);
 }
 
 // Lógica para abrir el diálogo de selección y cargar archivos

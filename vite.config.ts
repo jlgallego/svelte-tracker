@@ -6,5 +6,10 @@ export default defineConfig({
 	plugins: [
 		enhancedImages(), // must come before the SvelteKit plugin
 		sveltekit(),
-	]
+	],
+	server: {
+  		watch: { usePolling: true },
+  		host: "0.0.0.0",
+  		port: 5173
+	}
 });

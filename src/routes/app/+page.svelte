@@ -2,11 +2,20 @@
 
     import Map from '$lib/components/Map.svelte';
     import Menu from '$lib/components/Menu.svelte';
-	import Testmenu from '$lib/components/Testmenu.svelte';
-    import { gpxFiles, selectedGpxFile, triggerFileInput } from '$lib/gpxStore'; // gpxFiles y selectedGpxFile son variables reactivas
+    import Toolbar from '$lib/components/Toolbar.svelte';
+    import { gpxFiles, selectedGpxFile } from '$lib/gpxStore'; // gpxFiles y selectedGpxFile son variables reactivas
+    import { appState } from '$lib/appStateStore'; // Importa el store de estado de la aplicación
    
     function selectFile(file: GPXFile) {
+        $appState = null; // Resetea el estado de edición al seleccionar un archivo
         selectedGpxFile.set(file);
+    }
+
+    // Estado de edidión
+    let editing = false;
+    
+    function toggleEdit() {
+        editing = !editing;
     }
 
     let bottomPanelHeight = 200;
@@ -40,15 +49,23 @@
 <!-- <Testmenu /> <!-- Componente de menú de prueba -->
     
 <!-- ZONA MAPA FLEXIBLE -->
- 
+
+{#if $selectedGpxFile && $selectedGpxFile.id }
+    <!-- Aquí debe controlarse la visibilidad de la toolbar -->
+    <Toolbar /> <!-- gpxFile={$selectedGpxFile} /> -->
+{/if}
+
 <div class="map-section">
-    <Map geojsonData={$selectedGpxFile?.geojson} />
+    <Map geojsonData={$selectedGpxFile?.geojson}  {editing} />
 </div>
 
 <section class="bottom-panel" style="height: {bottomPanelHeight}px;">
     <div class="resize-handle" on:pointerdown={onPointerDown} aria-label="Drag para cambiar tamaño" role="slider" tabindex="0"></div>
     <h3>Ficheros cargados</h3>
     {#if $gpxFiles && $gpxFiles.length > 0}
+
+
+
 
     <ul class="file-list">
         {#each $gpxFiles as file}
