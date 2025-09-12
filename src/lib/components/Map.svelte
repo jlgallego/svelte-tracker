@@ -1,4 +1,5 @@
 <script lang="ts">
+    import {RoutingManager} from '$lib/routing/RoutingManager';
     import { onMount, onDestroy } from 'svelte';
     import mapboxgl from 'mapbox-gl';
     import 'mapbox-gl/dist/mapbox-gl.css';
@@ -6,9 +7,12 @@
 
     import { PUBLIC_MAPBOX_TOKEN } from '$env/static/public';
     import { PUBLIC_DEBUG } from '$env/static/public';
-    import { gpxFiles, selectedGpxFile, addPointToSelectedTrack } from '$lib/gpxStore';
+    import { gpxFiles, 
+        selectedGpxFile, 
+        movePointInSelectedTrack, 
+        removePointFromSelectedTrack } from '$lib/gpxStore';
     import { appState } from '$lib/appStateStore';
-    import { getTrackPoints, setTrackPoints, parseGeoJSONToGpx } from '$lib/gpx';
+    
 	
     export let accessToken = PUBLIC_MAPBOX_TOKEN;
     //export let geojsonData: GeoJSON.FeatureCollection | null = null;
@@ -17,11 +21,12 @@
     const { Map } = mapboxgl;
 
     let map: mapboxgl.Map;;
+    let routingManager: RoutingManager;
+
     let mapContainer: HTMLDivElement;
     let dragPointIndex: number | null = null;
 
     let lng, lat, zoom, bearing, pitch, globalAppState;
-
 
     let points: [number, number][] = [];
 
@@ -52,6 +57,9 @@
             pitch: initialState.pitch,
             style: 'mapbox://styles/mapbox/streets-v9'
         });
+
+        // Se instancia la clase que controla la edición y el routing
+        routingManager = new RoutingManager(map, selectedGpxFile);
     
         map.addControl(new mapboxgl.AttributionControl({
             compact: true,
@@ -61,223 +69,43 @@
             visualizePitch: true,
         }));
     
-        enablePointDragging();
-
-        // Pintar inicial
-        updateLayers();
-
-        map.on('styledata', () => updateLayers());
-
-        map.on('load', () => updateLayers());
-        
-        // Se añade un punto al final del track al hacer click en el mapa
-        map.on('click', e => {
+        // Al hacer click en el track, se añade un punto intermedio
+        map.on('click', 'route-line', (e) => {
+            console.log("Event: click on route-line");
             if ($appState === 'EDIT') {
-                addPointToSelectedTrack(e.lngLat.lng, e.lngLat.lat);
-                
+                const coords = e.lngLat;
+                routingManager.addAnchorOnTrack(coords.lng, coords.lat);
             }
         });
 
-        $appState = initialState.globalAppState;
+        // Se añade un punto al final del track al hacer click en el mapa
+        map.on('click', e => {
+            if ($appState === 'EDIT') {
+                // Evitar manejar el evento si ya se manejó en la capa 'route-line'
+                const features = map.queryRenderedFeatures(e.point, { layers: ['route-line'] });
+                if (features.length === 0) {
+                    const coords = e.lngLat;
+                    console.log("Event: click NOT on route-line");
+                    routingManager.addAnchor(coords.lng, coords.lat);
+                }
+            }
+        });
+
     });
 
 
     onDestroy(() => {
+        routingManager?.dispose();
         map?.remove();
     });
 
     $: if (map) {
         map.getCanvas().style.cursor = $appState === "EDIT" ? "crosshair" : "";
-
-        updateMapSources($selectedGpxFile?.geojson?.features ? $selectedGpxFile.geojson : { type: 'FeatureCollection', features: [] });
-        updateLayers();
-        
     }
 
-    $: if (map && !geojsonData) {
-        updateLayers();
+    $: if (routingManager && map) {
+        routingManager.setEditVisuals($appState === 'EDIT');
     }
-
-    function handleReset() {
-        map.flyTo({
-        center: [initialState.lng, initialState.lat],
-        zoom: initialState.zoom,
-        bearing: 0,
-        pitch: 0,
-        essential: true // this animation is considered essential with respect to prefers-reduced-motion
-
-        
-        });
-    }
-    
-    // Crear GeoJSON de puntos con índice en properties
-    function createPointsGeoJSON(geojson: FeatureCollection): FeatureCollection {
-        const coords = getTrackPoints(geojson);
-        return {
-            type: 'FeatureCollection',
-            features: coords.map((coord, idx) => ({
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: coord },
-                properties: { index: idx }
-        }))
-        };
-    }
-
-    // Función que actualiza las fuentes directamente
-function updateMapSources(updatedGeojson: FeatureCollection) {
-  if (!map) return;
-
-  const pointsGeojson = createPointsGeoJSON(updatedGeojson);
-
-  if (map.getSource('gpx-points')) {
-    (map.getSource('gpx-points') as mapboxgl.GeoJSONSource).setData(pointsGeojson);
-  }
-
-  if (map.getSource('gpx')) {
-    (map.getSource('gpx') as mapboxgl.GeoJSONSource).setData(updatedGeojson);
-  }
-}
-
-    function updateLayers() {
-
-        if (!map) return;
-        if (!geojsonData) {
-            // limpiar si no hay datos
-            if (map.getLayer('gpx-points-layer')) map.removeLayer('gpx-points-layer');
-            if (map.getSource('gpx-points')) map.removeSource('gpx-points');
-            if (map.getLayer('gpx-line')) map.removeLayer('gpx-line');
-            if (map.getSource('gpx')) map.removeSource('gpx');
-            return;
-        }
-
-        const coords = getTrackPoints(geojsonData);
-
-        // --- CAPA PUNTOS ---
-        const pointsGeojson = createPointsGeoJSON(geojsonData);
-        if (map.getSource('gpx-points')) {
-            (map.getSource('gpx-points') as mapboxgl.GeoJSONSource).setData(pointsGeojson);
-            map.setLayoutProperty('gpx-points-layer', 'visibility', $appState === 'EDIT' ? 'visible' : 'none');
-        } else {
-            map.addSource('gpx-points', { type: 'geojson', data: pointsGeojson });
-            map.addLayer({
-                id: 'gpx-points-layer',
-                type: 'symbol',
-                source: 'gpx-points',
-                layout: {
-                    'icon-image': 'marker-15',
-                    'icon-size': 2,
-                    'icon-allow-overlap': true,
-                    'visibility': $appState === 'EDIT' ? 'visible' : 'none'
-                }
-            });
-        }
-
-        // --- CAPA LÍNEA ---
-        if (coords.length >= 2) {
-            if (map.getSource('gpx')) {
-                (map.getSource('gpx') as mapboxgl.GeoJSONSource).setData(geojsonData);
-            } else {
-                map.addSource('gpx', { type: 'geojson', data: geojsonData });
-                map.addLayer({
-                    id: 'gpx-line',
-                    type: 'line',
-                    source: 'gpx',
-                    layout: { 'line-join': 'round', 'line-cap': 'round' },
-                    paint: { 'line-color': '#f00', 'line-width': 3 }
-                });
-            }
-        } else {
-            // si hay menos de 2 puntos, eliminar la línea si ya existe
-            if (map.getLayer('gpx-line')) map.removeLayer('gpx-line');
-            if (map.getSource('gpx')) map.removeSource('gpx');
-        }
-    }
-
-    function enablePointDragging() {
-        if (!map) return;
-
-        map.on('mouseenter', 'gpx-points-layer', () => {
-            if ($appState === 'EDIT') {
-                map.getCanvas().style.cursor = 'pointer';
-            }
-        });
-        map.on('mouseleave', 'gpx-points-layer', () => {
-            map.getCanvas().style.cursor = $appState === 'EDIT' ? 'crosshair' : '';
-        });
-
-        map.on('mouseenter', 'gpx-line', () => {
-            if ($appState === 'EDIT') {
-                map.getCanvas().style.cursor = 'pointer';
-            }
-        });
-        map.on('mouseleave', 'gpx-line', () => {
-            map.getCanvas().style.cursor = $appState === 'EDIT' ? 'crosshair' : '';
-        });
-
-        map.on('mousedown', 'gpx-points-layer', e => {
-            if ($appState !== 'EDIT') return; // solo en modo edición
-            if (!e.features?.length) return;
-
-            dragPointIndex = e.features[0].properties?.index;
-            if (dragPointIndex === null || dragPointIndex === undefined) return;
-
-            // Cambiar cursor y deshabilitar pan
-            map.getCanvas().style.cursor = 'grabbing';
-            map.dragPan.disable();
-            map.boxZoom.disable();
-
-            map.on('mousemove', onDrag);
-            map.once('mouseup', onDrop);
-        });
-
-        function onDrag(e) {
-
-            if (dragPointIndex == null) return;
-        
-            const file = $selectedGpxFile;
-            
-            if (!file?.geojson) return;
-
-            const coords = getTrackPoints(file.geojson);
-            coords[dragPointIndex] = [e.lngLat.lng, e.lngLat.lat];
-
-            const newGeojson = setTrackPoints(file.geojson, coords);
-
-            // Convertir a contenido GPX actualizado
-            const newContent = parseGeoJSONToGpx(newGeojson);
-
-            const updatedFile = {
-                ...file,
-                geojson: newGeojson,
-                content: newContent
-            };
-
-            selectedGpxFile.set(updatedFile);
-
-            gpxFiles.update(files => 
-                files.map(f => f.id === updatedFile.id ? updatedFile : f)
-            );
-            
-            updateMapSources(newGeojson);
-
-            // El cursor sigue en grabbing mientras se mueve
-            map.getCanvas().style.cursor = 'grabbing';
-        }
-        
-
-        function onDrop() {
-            dragPointIndex = null;
-            map.getCanvas().style.cursor = $appState === 'EDIT' ? 'crosshair' : '';
-            map.dragPan.enable();
-            map.boxZoom.enable();
-            map.off('mousemove', onDrag);
-
-        }
-    }
-
-
-
-    
 
 </script>
 
