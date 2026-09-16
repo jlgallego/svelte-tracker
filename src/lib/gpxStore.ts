@@ -4,8 +4,8 @@ import type { GPXFile } from '$lib/gpx/types';
 import { addPointToGpxFile, removePointFromGpxFile, addPointToGpxFileSegmentRouting } from '$lib/gpx/fileUtils';
 import { parseGpxToGeoJSON } from '$lib/gpx'; // importa desde la librería gpx
 import { appState, routingEnabled, selectedProfile, avoidCycling } from '$lib/appStateStore'; // Importa el store de estado de la aplicación
-
-
+import { generateSmartAnchorPoints, getTrackPoints } from './gpx';
+import { RoutingManager } from './routing/RoutingManager';
 
 // Store para la lista de archivos GPX
 export const gpxFiles: Writable<GPXFile[]> = writable([]);
@@ -98,16 +98,26 @@ export function triggerFileInput() {
 
 export async function loadFiles(list: FileList | File[]) {
   const loadedFiles: GPXFile[] = [];
-
+  
   for (let i = 0; i < list.length; i++) {
     const file = await loadFile(list[i]);
+
     if (file) {
       // Convertir a GeoJSON
       try {
+        // Parse geoJSON from GPX
         const geojson = parseGpxToGeoJSON(file.content);
         file.geojson = geojson;
+
+        // Build smart anchorPoints
+        const trackCoords = getTrackPoints(geojson);
+        const anchorPoints = generateSmartAnchorPoints(trackCoords);
+        
+        console.log(file);
+        file.anchorPoints = anchorPoints;
+
       } catch (error) {
-        console.warn(`Error al convertir GPX a GeoJSON para ${file.name}`, error);
+        console.warn(`Error cargando fichero GPX ${file.name}`, error);
         file.geojson = null;
       }
       loadedFiles.push(file);
@@ -136,6 +146,8 @@ async function loadFile(file: File): Promise<GPXFile | null> {
           name: file.name,
           content: data
         });
+
+
       } else {
         resolve(null);
       }

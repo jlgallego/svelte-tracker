@@ -32,6 +32,8 @@ export class RoutingManager {
       } else {
         this.renderAnchors();
         this.renderRouteLine();
+
+        if (get(appState) != 'EDIT') this.fitMapToCurrentRoute();
       }
     });
     
@@ -224,6 +226,7 @@ export class RoutingManager {
 
     this.currentFile = updatedFile;
     selectedGpxFile.set(updatedFile);
+    
     gpxFiles.update(files => files.map(f => f.id === updatedFile.id ? updatedFile : f));
 
     this.renderRouteLine();
@@ -261,6 +264,8 @@ export class RoutingManager {
       const url = createRoutingUrl(points);
       if (!url) return null;
 
+      console.log("BRouter URL: ", url);
+
       try {
           const response = await fetch(url);
           if (!response.ok) throw new Error(`HTTP error ${response.status}`);
@@ -271,6 +276,23 @@ export class RoutingManager {
           console.error('Error fetching route from BRouter:', error);
           return null;
       }
+  }
+
+  public fitMapToCurrentRoute(padding = 20) {
+    if (!this.currentFile?.geojson) return;
+
+    const lineFeature = this.currentFile.geojson.features.find(f => f.geometry.type === 'LineString');
+    if (!lineFeature) return;
+
+    const coords = lineFeature.geometry.coordinates as [number, number][];
+    if (coords.length === 0) return;
+
+    const bounds = new mapboxgl.LngLatBounds(coords[0], coords[0]);
+    for (const coord of coords) {
+      bounds.extend(coord);
+    }
+
+    this.map.fitBounds(bounds, { padding });
   }
 
   // Limpiar suscripciones cuando ya no se necesite

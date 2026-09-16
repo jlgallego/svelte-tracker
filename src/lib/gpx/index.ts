@@ -4,4 +4,5 @@ export * from './geojson';
 //export * from './export';
 export * from './routing';
 export * from './fileUtils';
+export * from './anchors';
 export * from './types';
